@@ -31,9 +31,9 @@ void * client_thread(void *data) {
     printf("Client connected\n");
 
     while (1) {
-        char buf[BUFSZ];
-        memset(buf, 0, BUFSZ);
-        size_t count = recv(cdata->csock, buf, BUFSZ - 1, 0);
+        struct BlogOperation operation;
+        memset(&operation, 0, sizeof(operation));
+        size_t count = recv(cdata->csock, &operation, sizeof(operation), 0);
 
         if ((int)count < 0) {
             perror("recv");
@@ -41,8 +41,19 @@ void * client_thread(void *data) {
         } else if ((int)count == 0) {
             printf("Client disconnected.\n");
             break;
+        } else if (operation.operation_type == 2) {
+            printf("Publicado %s em %s\n", operation.content, operation.topic);
+        } else if (operation.operation_type == 3) {
+            printf("listagem de topicos\n");
+        } else if (operation.operation_type == 4) {
+            printf("client subscribed in %s\n", operation.topic);
+        } else if (operation.operation_type == 5) {
+            printf("Client disconnected.\n");
+            break;
+        } else if (operation.operation_type == 6) {
+            printf("client unsubscribed from %s\n", operation.topic);
         } else {
-            printf("Mensagem recebida: %s\n", buf);
+            printf("comando desconhecido\n");
         }
     }
     

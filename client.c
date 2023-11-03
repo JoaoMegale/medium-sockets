@@ -42,12 +42,62 @@ int main(int argc, char **argv) {
 
 	printf("connected to %s\n", addrstr);
 
-	char message[BUFSZ];
+	struct BlogOperation operation;
+	char client_input[BUFSZ];
 
 	while(1) {
-		printf("mensagem> ");
-		fgets(message, BUFSZ-1, stdin);
-		send(s, message, strlen(message)+1, 0);
+		printf("> ");
+		fgets(client_input, BUFSZ-1, stdin);
+
+		operation.server_response = 0;
+
+		// publicar algo
+		if (strncmp(client_input, "publish in ", 11) == 0) {
+			operation.operation_type = 2;
+
+			client_input[strcspn(client_input, "\n")] = 0;
+			strncpy(operation.topic, client_input + 11, sizeof(operation.topic));
+
+			memset(operation.content, 0, sizeof(operation.content));
+
+			fgets(client_input, sizeof(client_input), stdin);
+
+			client_input[strcspn(client_input, "\n")] = 0;
+			strncpy(operation.content, client_input, sizeof(operation.content));
+		}
+
+		// listar topicos
+		else if ((strcmp(client_input, "list topics\n") == 0)) {
+			operation.operation_type = 3;
+		}
+
+		// inscrição em um tópico
+		else if (strncmp(client_input, "subscribe ", 10) == 0) {
+			operation.operation_type = 4;
+
+			client_input[strcspn(client_input, "\n")] = 0;
+			strncpy(operation.topic, client_input + 10, sizeof(operation.topic));
+		}
+
+		// desconectar
+		else if (strcmp(client_input, "exit\n") == 0) {
+			operation.operation_type = 5;
+			break;
+		}
+
+		// desinscrição em um tópico
+		else if (strncmp(client_input, "unsubscribe ", 12) == 0) {
+			operation.operation_type = 6;
+
+			client_input[strcspn(client_input, "\n")] = 0;
+			strncpy(operation.topic, client_input + 12, sizeof(operation.topic));
+		}
+
+		else {
+			printf("comando desconhecido.\n");
+		}
+		
+		send(s, &operation, sizeof(operation), 0);
 	}
 	close(s);
 

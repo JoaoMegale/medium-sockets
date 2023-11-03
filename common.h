@@ -4,6 +4,14 @@
 
 #include <arpa/inet.h>
 
+struct BlogOperation {
+    int client_id;
+    int operation_type;
+    int server_response;
+    char topic[50];
+    char content[2048];
+};
+
 void logexit(const char *msg);
 
 int addrparse(const char *addrstr, const char *portstr,
