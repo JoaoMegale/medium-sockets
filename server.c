@@ -10,6 +10,42 @@
 #include <sys/types.h>
 
 #define BUFSZ 1024
+#define MAX_CLIENTS 10
+
+int ids_disponiveis[MAX_CLIENTS];
+
+int get_prox_id() {
+    // Retorne o próximo ID disponível e marque-o como usado
+    if (ids_disponiveis[0] == 0) {
+        // Todos os IDs estão em uso
+        return -1; // Ou outra sinalização de erro, se desejar
+    }
+
+    int next_id = ids_disponiveis[0];
+    // Remova o ID da lista (shift left)
+    for (int i = 0; i < MAX_CLIENTS - 1; i++) {
+        ids_disponiveis[i] = ids_disponiveis[i + 1];
+    }
+    ids_disponiveis[MAX_CLIENTS - 1] = 0; // Marque o último como vazio
+
+    return next_id;
+}
+
+void liberar_id(int client_id) {
+
+    int pos ;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (ids_disponiveis[i] >= client_id) {
+            pos = i;
+            break;
+        } 
+    }
+
+    for (int i = pos+1; i <= MAX_CLIENTS; i++) {
+        ids_disponiveis[i] = ids_disponiveis[i-1];
+    }
+    ids_disponiveis[pos] = client_id;
+}
 
 void usage(int argc, char **argv) {
     printf("usage: %s <v4|v6> <server port>\n", argv[0]);
@@ -20,6 +56,7 @@ void usage(int argc, char **argv) {
 struct client_data {
     int csock;
     struct sockaddr_storage storage;
+    int id;
 };
 
 void * client_thread(void *data) {
@@ -28,19 +65,26 @@ void * client_thread(void *data) {
 
     char caddrstr[BUFSZ];
     addrtostr(caddr, caddrstr, BUFSZ);
-    printf("Client connected\n");
+    printf("Client %d connected\n", cdata->id);
 
     while (1) {
         struct BlogOperation operation;
         memset(&operation, 0, sizeof(operation));
         size_t count = recv(cdata->csock, &operation, sizeof(operation), 0);
 
+        struct BlogOperation server_resp;
+        server_resp.server_response = 1;
+        server_resp.operation_type = operation.operation_type;
+        
         if ((int)count < 0) {
             perror("recv");
             break;
         } else if ((int)count == 0) {
             printf("Client disconnected.\n");
             break;
+        } else if (operation.operation_type == 1) {
+            printf("connection message recieved\n");
+            server_resp.client_id = cdata->id;
         } else if (operation.operation_type == 2) {
             printf("Publicado %s em %s\n", operation.content, operation.topic);
         } else if (operation.operation_type == 3) {
@@ -58,6 +102,8 @@ void * client_thread(void *data) {
     }
     
     close(cdata->csock);
+    liberar_id(cdata->id);
+
 
     pthread_exit(EXIT_SUCCESS);
 }
@@ -70,6 +116,10 @@ int main(int argc, char **argv) {
     struct sockaddr_storage storage;
     if (0 != server_sockaddr_init(argv[1], argv[2], &storage)) {
         usage(argc, argv);
+    }
+
+    for (int i = 1; i <= MAX_CLIENTS; i++) {
+        ids_disponiveis[i - 1] = i;
     }
 
     int s;
@@ -106,12 +156,15 @@ int main(int argc, char **argv) {
             logexit("accept");
         }
 
-	struct client_data *cdata = malloc(sizeof(*cdata));
-	if (!cdata) {
-		logexit("malloc");
-	}
-	cdata->csock = csock;
-	memcpy(&(cdata->storage), &cstorage, sizeof(cstorage));
+        int client_id = get_prox_id();
+
+        struct client_data *cdata = malloc(sizeof(*cdata));
+        if (!cdata) {
+            logexit("malloc");
+        }
+        cdata->csock = csock;
+        memcpy(&(cdata->storage), &cstorage, sizeof(cstorage));
+        cdata->id = client_id;
 
         pthread_t tid;
         pthread_create(&tid, NULL, client_thread, cdata);

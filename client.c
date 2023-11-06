@@ -40,6 +40,16 @@ int main(int argc, char **argv) {
 	char addrstr[BUFSZ];
 	addrtostr(addr, addrstr, BUFSZ);
 
+	struct BlogOperation connection;
+	connection.client_id = 0;
+	connection.operation_type = 1;
+	connection.server_response = 0;
+	strcpy(connection.topic, "");
+	strcpy(connection.content, "");
+
+	send(s, &connection, sizeof(connection), 0);
+
+
 	printf("connected to %s\n", addrstr);
 
 	struct BlogOperation operation;
