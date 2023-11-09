@@ -65,7 +65,6 @@ void * client_thread(void *data) {
 
     char caddrstr[BUFSZ];
     addrtostr(caddr, caddrstr, BUFSZ);
-    printf("Client %d connected\n", cdata->id);
 
     while (1) {
         struct BlogOperation operation;
@@ -75,32 +74,37 @@ void * client_thread(void *data) {
         struct BlogOperation server_resp;
         server_resp.server_response = 1;
         server_resp.operation_type = operation.operation_type;
+        strcpy(server_resp.content, operation.content);
+        strcpy(server_resp.topic, operation.topic);
         
         if ((int)count < 0) {
             perror("recv");
             break;
         } else if ((int)count == 0) {
-            printf("Client disconnected.\n");
+            printf("client %d disconnected.\n", operation.client_id);
             break;
         } else if (operation.operation_type == 1) {
-            printf("connection message recieved\n");
+            printf("client %d connected\n", cdata->id);
             server_resp.client_id = cdata->id;
         } else if (operation.operation_type == 2) {
-            printf("Publicado %s em %s\n", operation.content, operation.topic);
+            printf("Publicado %s em %s by %d\n", operation.content, operation.topic, operation.client_id);
         } else if (operation.operation_type == 3) {
             printf("listagem de topicos\n");
         } else if (operation.operation_type == 4) {
-            printf("client subscribed in %s\n", operation.topic);
+            printf("client %d subscribed in %s\n", operation.client_id, operation.topic);
         } else if (operation.operation_type == 5) {
-            printf("Client disconnected.\n");
+            printf("client %d disconnected.\n", operation.client_id);
             break;
         } else if (operation.operation_type == 6) {
-            printf("client unsubscribed from %s\n", operation.topic);
+            printf("client %d unsubscribed from %s\n", operation.client_id, operation.topic);
         } else {
             printf("comando desconhecido\n");
         }
+
+        send(cdata->csock, &server_resp, sizeof(server_resp), 0);
+
     }
-    
+
     close(cdata->csock);
     liberar_id(cdata->id);
 

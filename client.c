@@ -40,6 +40,8 @@ int main(int argc, char **argv) {
 	char addrstr[BUFSZ];
 	addrtostr(addr, addrstr, BUFSZ);
 
+	int client_id = 0;
+
 	struct BlogOperation connection;
 	connection.client_id = 0;
 	connection.operation_type = 1;
@@ -48,6 +50,19 @@ int main(int argc, char **argv) {
 	strcpy(connection.content, "");
 
 	send(s, &connection, sizeof(connection), 0);
+
+	struct BlogOperation id_attribution;
+
+	ssize_t bytes_received = recv(s, &id_attribution, sizeof(id_attribution), 0);
+	if (bytes_received == -1) {
+		logexit("recieve");
+	} else if (bytes_received == 0) { // conexão terminada
+		close(s);
+	}
+	else {
+		client_id = id_attribution.client_id;
+	}
+	printf("id atribuido: %d\n", client_id);
 
 
 	printf("connected to %s\n", addrstr);
@@ -60,6 +75,7 @@ int main(int argc, char **argv) {
 		fgets(client_input, BUFSZ-1, stdin);
 
 		operation.server_response = 0;
+		operation.client_id = client_id;
 
 		// publicar algo
 		if (strncmp(client_input, "publish in ", 11) == 0) {
@@ -92,6 +108,7 @@ int main(int argc, char **argv) {
 		// desconectar
 		else if (strcmp(client_input, "exit\n") == 0) {
 			operation.operation_type = 5;
+			send(s, &operation, sizeof(operation), 0);
 			break;
 		}
 
@@ -108,6 +125,19 @@ int main(int argc, char **argv) {
 		}
 		
 		send(s, &operation, sizeof(operation), 0);
+
+		struct BlogOperation server_resp;
+
+		ssize_t bytes_received = recv(s, &server_resp, sizeof(server_resp), 0);
+		if (bytes_received == -1) {
+			logexit("recieve");
+		} else if (bytes_received == 0) { // conexão terminada
+			break;
+		}
+
+		if (server_resp.operation_type == 1) {
+			client_id = server_resp.client_id;
+		}
 	}
 	close(s);
 
