@@ -97,24 +97,7 @@ void * client_thread(void *data) {
         }
 
         else if (operation.operation_type == 2) {
-            printf("Publicado %s em %s by %d\n", operation.content, operation.topic, operation.client_id);
-
-            int topic_index = -1;
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (strcmp(cdata->sdata->topicos[i].nome, operation.topic) == 0) {
-                    topic_index = i;
-                    break;
-                } else if (strlen(cdata->sdata->topicos[i].nome) == 0) {
-                    strcpy(cdata->sdata->topicos[i].nome, operation.topic);
-                    topic_index = i;
-                    break;
-                }
-            }
-
-            // Adicione o cliente à lista de inscritos
-            if (topic_index != -1 && cdata->sdata->topicos[topic_index].num_subs < MAX_CLIENTS) {
-                cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++] = cdata->id;
-            }
+            printf("new post added in %s by %d\n%s\n", operation.topic, operation.client_id, operation.content);
         }
 
         else if (operation.operation_type == 3) {
@@ -128,7 +111,7 @@ void * client_thread(void *data) {
         } 
 
         else if (operation.operation_type == 4) {
-            printf("client %d subscribed in %s\n", operation.client_id, operation.topic);
+            printf("client %d subscribed to %s\n", operation.client_id, operation.topic);
 
             // Encontre o tópico correspondente ou crie um novo
             int topic_index = -1;
@@ -155,6 +138,9 @@ void * client_thread(void *data) {
 
                 if (!client_already_subscribed) {
                     cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++] = cdata->id;
+                }
+                else {
+                    printf("error: already subscribed\n");
                 }
             }
 

@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
 		if (strncmp(client_input, "publish in ", 11) == 0) {
 			operation.operation_type = 2;
 
+			printf("> ");
 			client_input[strcspn(client_input, "\n")] = 0;
 			strncpy(operation.topic, client_input + 11, sizeof(operation.topic));
 
