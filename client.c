@@ -138,6 +138,7 @@ int main(int argc, char **argv) {
 		if (server_resp.operation_type == 1) {
 			client_id = server_resp.client_id;
 		}
+
 	}
 	close(s);
 

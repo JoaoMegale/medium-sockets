@@ -4,12 +4,20 @@
 
 #include <arpa/inet.h>
 
+#define MAX_CLIENTS 10
+
 struct BlogOperation {
     int client_id;
     int operation_type;
     int server_response;
     char topic[50];
     char content[2048];
+};
+
+struct Topic {
+    char nome[50];
+    int sub_clients[MAX_CLIENTS];
+    int num_subs;
 };
 
 void logexit(const char *msg);
