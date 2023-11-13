@@ -14,17 +14,6 @@
 
 int ids_disponiveis[MAX_CLIENTS];
 
-struct client_data {
-    int csock;
-    struct sockaddr_storage storage;
-    int id;
-    struct server_data *sdata;
-};
-
-struct server_data {
-    struct Topic topicos[MAX_CLIENTS];
-};
-
 int get_prox_id() {
     // Retorne o próximo ID disponível e marque-o como usado
     if (ids_disponiveis[0] == 0) {
@@ -97,7 +86,33 @@ void * client_thread(void *data) {
         }
 
         else if (operation.operation_type == 2) {
-            printf("new post added in %s by %d\n%s\n", operation.topic, operation.client_id, operation.content);
+            printf("new post added in %s by %d\n", operation.topic, operation.client_id);
+
+            int topic_index = -1;
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (strcmp(cdata->sdata->topicos[i].nome, operation.topic) == 0) {
+                    topic_index = i;
+                    break;
+                } else if (strlen(cdata->sdata->topicos[i].nome) == 0) {
+                    strcpy(cdata->sdata->topicos[i].nome, operation.topic);
+                    topic_index = i;
+                    break;
+                }
+            }
+            // Enviar a mensagem para todos os clientes inscritos no tópico
+            if (topic_index != -1) {
+                for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
+                    int subscriber_id = cdata->sdata->topicos[topic_index].sub_clients[i].id;
+                    struct BlogOperation broadcast_msg;
+                    broadcast_msg.client_id = subscriber_id;
+                    broadcast_msg.operation_type = 7;
+                    broadcast_msg.server_response = 1;
+                    strcpy(broadcast_msg.topic, operation.topic);
+                    strcpy(broadcast_msg.content, operation.content);
+
+                    send(cdata->sdata->topicos[topic_index].sub_clients[i].csock, &broadcast_msg, sizeof(broadcast_msg), 0);
+                }
+            }
         }
 
         else if (operation.operation_type == 3) {
@@ -130,25 +145,25 @@ void * client_thread(void *data) {
             if (topic_index != -1 && cdata->sdata->topicos[topic_index].num_subs < MAX_CLIENTS) {
                 int client_already_subscribed = 0;
                 for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
-                    if (cdata->sdata->topicos[topic_index].sub_clients[i] == cdata->id) {
+                    if (cdata->sdata->topicos[topic_index].sub_clients[i].id == cdata->id) {
                         client_already_subscribed = 1;
                         break;
                     }
                 }
 
                 if (!client_already_subscribed) {
-                    cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++] = cdata->id;
+                    cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++].id = cdata->id;
                 }
                 else {
                     printf("error: already subscribed\n");
                 }
             }
 
-            printf("\nTotal clients subscribed in %s:\n", operation.topic);
-            for (int i=0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
-                printf("%d, ", cdata->sdata->topicos[topic_index].sub_clients[i]);
-            }
-            printf("\n");
+            // Adicionar o socket do cliente ao array do tópico
+            cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs-1].csock = cdata->csock;
+            
+            // Enviar confirmação ao cliente
+            send(cdata->csock, &server_resp, sizeof(server_resp), 0);
 
         }
 
@@ -172,7 +187,7 @@ void * client_thread(void *data) {
             // Remova o cliente da lista de inscritos (se estiver inscrito)
             if (topic_index != -1) {
                 for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
-                    if (cdata->sdata->topicos[topic_index].sub_clients[i] == cdata->id) {
+                    if (cdata->sdata->topicos[topic_index].sub_clients[i].id == cdata->id) {
                         // Shift left para remover o cliente da lista
                         for (int j = i; j < cdata->sdata->topicos[topic_index].num_subs - 1; j++) {
                             cdata->sdata->topicos[topic_index].sub_clients[j] = cdata->sdata->topicos[topic_index].sub_clients[j + 1];

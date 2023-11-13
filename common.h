@@ -6,6 +6,13 @@
 
 #define MAX_CLIENTS 10
 
+struct client_data {
+    int csock;
+    struct sockaddr_storage storage;
+    int id;
+    struct server_data *sdata;
+};
+
 struct BlogOperation {
     int client_id;
     int operation_type;
@@ -16,8 +23,12 @@ struct BlogOperation {
 
 struct Topic {
     char nome[50];
-    int sub_clients[MAX_CLIENTS];
+    struct client_data sub_clients[MAX_CLIENTS];
     int num_subs;
+};
+
+struct server_data {
+    struct Topic topicos[MAX_CLIENTS];
 };
 
 void logexit(const char *msg);

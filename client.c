@@ -4,10 +4,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+
+#define BUFSZ 1024
+
+int client_id = 0;
 
 void usage(int argc, char **argv) {
 	printf("usage: %s <server IP> <server port>\n", argv[0]);
@@ -15,7 +19,29 @@ void usage(int argc, char **argv) {
 	exit(EXIT_FAILURE);
 }
 
-#define BUFSZ 1024
+void *recv_handler(void *socket_desc) {
+    int s = *((int *)socket_desc);
+    struct BlogOperation server_resp;
+
+    while (1) {
+        ssize_t bytes_received = recv(s, &server_resp, sizeof(server_resp), 0);
+        if (bytes_received == -1) {
+            logexit("receive");
+        } else if (bytes_received == 0) { // conexão terminada
+            break;
+        }
+
+		if (server_resp.operation_type == 1) {
+			client_id = server_resp.client_id;
+		}
+
+		if (server_resp.operation_type == 7) {
+			printf("%s\n", server_resp.content);
+		}
+    }
+
+    pthread_exit(NULL);
+}
 
 int main(int argc, char **argv) {
 	if (argc < 3) {
@@ -40,6 +66,7 @@ int main(int argc, char **argv) {
 	char addrstr[BUFSZ];
 	addrtostr(addr, addrstr, BUFSZ);
 
+	// CONNECTION MESSAGE
 	int client_id = 0;
 
 	struct BlogOperation connection;
@@ -51,6 +78,7 @@ int main(int argc, char **argv) {
 
 	send(s, &connection, sizeof(connection), 0);
 
+	// ID ATTRIBUTION
 	struct BlogOperation id_attribution;
 
 	ssize_t bytes_received = recv(s, &id_attribution, sizeof(id_attribution), 0);
@@ -62,8 +90,10 @@ int main(int argc, char **argv) {
 	else {
 		client_id = id_attribution.client_id;
 	}
-	printf("id atribuido: %d\n", client_id);
 
+	// THREADS
+	pthread_t recv_thread;
+	pthread_create(&recv_thread, NULL, recv_handler, (void *)&s);
 
 	printf("connected to %s\n", addrstr);
 
@@ -71,7 +101,6 @@ int main(int argc, char **argv) {
 	char client_input[BUFSZ];
 
 	while(1) {
-		printf("> ");
 		fgets(client_input, BUFSZ-1, stdin);
 
 		operation.server_response = 0;
@@ -127,20 +156,10 @@ int main(int argc, char **argv) {
 		
 		send(s, &operation, sizeof(operation), 0);
 
-		struct BlogOperation server_resp;
-
-		ssize_t bytes_received = recv(s, &server_resp, sizeof(server_resp), 0);
-		if (bytes_received == -1) {
-			logexit("recieve");
-		} else if (bytes_received == 0) { // conexão terminada
-			break;
-		}
-
-		if (server_resp.operation_type == 1) {
-			client_id = server_resp.client_id;
-		}
-
 	}
+
+	pthread_join(recv_thread, NULL);
+
 	close(s);
 
 	exit(EXIT_SUCCESS);
