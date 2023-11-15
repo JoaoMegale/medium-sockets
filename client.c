@@ -31,12 +31,24 @@ void *recv_handler(void *socket_desc) {
             break;
         }
 
+		// Atribuição do ID
 		if (server_resp.operation_type == 1) {
 			client_id = server_resp.client_id;
 		}
 
-		if (server_resp.operation_type == 7) {
-			printf("%s\n", server_resp.content);
+		// Recebe mensagem publicada
+		if (server_resp.operation_type == 2) {
+			printf("new post added in %s by %d\n%s\n", server_resp.topic, server_resp.client_id, server_resp.content);
+		}
+
+		// Listagem de tópicos
+		if (server_resp.operation_type == 3) {
+			printf("%s", server_resp.content);
+		}
+
+		// Recebe erro caso cliente já esteja inscrito
+		if (server_resp.operation_type == 4) {
+			printf("%s", server_resp.content);
 		}
     }
 
@@ -63,12 +75,10 @@ int main(int argc, char **argv) {
 		logexit("connect");
 	}
 
-	char addrstr[BUFSZ];
-	addrtostr(addr, addrstr, BUFSZ);
-
-	// CONNECTION MESSAGE
+	// ID inicial do cliente
 	int client_id = 0;
 
+	// Mensagem de conexão
 	struct BlogOperation connection;
 	connection.client_id = 0;
 	connection.operation_type = 1;
@@ -78,24 +88,21 @@ int main(int argc, char **argv) {
 
 	send(s, &connection, sizeof(connection), 0);
 
-	// ID ATTRIBUTION
+	// Atribuição de ID
 	struct BlogOperation id_attribution;
 
 	ssize_t bytes_received = recv(s, &id_attribution, sizeof(id_attribution), 0);
 	if (bytes_received == -1) {
 		logexit("recieve");
-	} else if (bytes_received == 0) { // conexão terminada
+	} else if (bytes_received == 0) {
 		close(s);
 	}
 	else {
 		client_id = id_attribution.client_id;
 	}
 
-	// THREADS
 	pthread_t recv_thread;
 	pthread_create(&recv_thread, NULL, recv_handler, (void *)&s);
-
-	printf("connected to %s\n", addrstr);
 
 	struct BlogOperation operation;
 	char client_input[BUFSZ];
@@ -142,7 +149,7 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-		// desinscrição em um tópico
+		// desinscrição de um tópico
 		else if (strncmp(client_input, "unsubscribe ", 12) == 0) {
 			operation.operation_type = 6;
 
@@ -154,6 +161,7 @@ int main(int argc, char **argv) {
 			printf("comando desconhecido.\n");
 		}
 		
+		// Envia operação ao servidor
 		send(s, &operation, sizeof(operation), 0);
 
 	}

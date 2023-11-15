@@ -15,24 +15,27 @@
 int ids_disponiveis[MAX_CLIENTS];
 
 int get_prox_id() {
-    // Retorne o próximo ID disponível e marque-o como usado
+
+    // Checa se há algum tópico disponível
     if (ids_disponiveis[0] == 0) {
-        // Todos os IDs estão em uso
-        return -1; // Ou outra sinalização de erro, se desejar
+        return -1;
     }
 
+    // Primeiro elemento do array é o próximo
     int next_id = ids_disponiveis[0];
-    // Remova o ID da lista (shift left)
+
+    // Remove o ID da lista (shift left)
     for (int i = 0; i < MAX_CLIENTS - 1; i++) {
         ids_disponiveis[i] = ids_disponiveis[i + 1];
     }
-    ids_disponiveis[MAX_CLIENTS - 1] = 0; // Marque o último como vazio
+    ids_disponiveis[MAX_CLIENTS - 1] = 0;
 
     return next_id;
 }
 
 void liberar_id(int client_id) {
 
+    // Procura a posição que o id liberado ficará
     int pos ;
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (ids_disponiveis[i] >= client_id) {
@@ -41,6 +44,7 @@ void liberar_id(int client_id) {
         } 
     }
 
+    // Shift-right
     for (int i = pos+1; i <= MAX_CLIENTS; i++) {
         ids_disponiveis[i] = ids_disponiveis[i-1];
     }
@@ -56,17 +60,14 @@ void usage(int argc, char **argv) {
 
 void * client_thread(void *data) {
     struct client_data *cdata = (struct client_data *)data;
-    struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
-
-    char caddrstr[BUFSZ];
-    addrtostr(caddr, caddrstr, BUFSZ);
 
     while (1) {
-
+        
         struct BlogOperation operation;
         memset(&operation, 0, sizeof(operation));
         size_t count = recv(cdata->csock, &operation, sizeof(operation), 0);
 
+        // Dados padronizados para a resposta do servidor
         struct BlogOperation server_resp;
         server_resp.server_response = 1;
         server_resp.operation_type = operation.operation_type;
@@ -80,14 +81,18 @@ void * client_thread(void *data) {
             printf("client %d disconnected.\n", operation.client_id);
             break;
         } 
+
+        // Atribuição do ID do cliente
         else if (operation.operation_type == 1) {
             printf("client %d connected\n", cdata->id);
             server_resp.client_id = cdata->id;
         }
 
+        // Publish
         else if (operation.operation_type == 2) {
             printf("new post added in %s by %d\n", operation.topic, operation.client_id);
 
+            // Identifica o tópico ou cria um novo
             int topic_index = -1;
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (strcmp(cdata->sdata->topicos[i].nome, operation.topic) == 0) {
@@ -99,13 +104,13 @@ void * client_thread(void *data) {
                     break;
                 }
             }
+
             // Enviar a mensagem para todos os clientes inscritos no tópico
             if (topic_index != -1) {
                 for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
-                    int subscriber_id = cdata->sdata->topicos[topic_index].sub_clients[i].id;
                     struct BlogOperation broadcast_msg;
-                    broadcast_msg.client_id = subscriber_id;
-                    broadcast_msg.operation_type = 7;
+                    broadcast_msg.client_id = operation.client_id;
+                    broadcast_msg.operation_type = 2;
                     broadcast_msg.server_response = 1;
                     strcpy(broadcast_msg.topic, operation.topic);
                     strcpy(broadcast_msg.content, operation.content);
@@ -115,20 +120,32 @@ void * client_thread(void *data) {
             }
         }
 
+        // List topics
         else if (operation.operation_type == 3) {
 
-            for (int i = 0; i < MAX_CLIENTS; i++) {
+            int isEmpty = 1;
+
+            // Armazena os tópicos em uma string, que será enviada como o conteúdo da resposta
+            strcpy(server_resp.content, "");
+            for (int i = 0; i < MAX_TOPICS; i++) {
                 if (strlen(cdata->sdata->topicos[i].nome) != 0) {
-                    printf("%s\n", cdata->sdata->topicos[i].nome);
+                    strcat(server_resp.content, cdata->sdata->topicos[i].nome);
+                    strcat(server_resp.content, "\n");
+                    isEmpty = 0;
                 }
+            }
+
+            // Checa se não há nenhum tópico ainda
+            if (isEmpty == 1) {
+                strcpy(server_resp.content, "no topics available\n");
             }
 
         } 
 
+        // Subscribe
         else if (operation.operation_type == 4) {
-            printf("client %d subscribed to %s\n", operation.client_id, operation.topic);
 
-            // Encontre o tópico correspondente ou crie um novo
+            // Encontra o tópico ou cria um novo
             int topic_index = -1;
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (strcmp(cdata->sdata->topicos[i].nome, operation.topic) == 0) {
@@ -141,7 +158,7 @@ void * client_thread(void *data) {
                 }
             }
 
-            // Adicione o cliente à lista de inscritos
+            // Checa se o cliente já está inscrito
             if (topic_index != -1 && cdata->sdata->topicos[topic_index].num_subs < MAX_CLIENTS) {
                 int client_already_subscribed = 0;
                 for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
@@ -151,31 +168,32 @@ void * client_thread(void *data) {
                     }
                 }
 
+                // Se não estiver inscrito, inscreve
                 if (!client_already_subscribed) {
                     cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++].id = cdata->id;
+                    printf("client %d subscribed to %s\n", operation.client_id, operation.topic);
                 }
+                // Se estiver inscrito, envia mensagem de erro
                 else {
-                    printf("error: already subscribed\n");
+                    strcat(server_resp.content, "error: already subscribed\n");
                 }
             }
 
-            // Adicionar o socket do cliente ao array do tópico
+            // Adiciona o socket do cliente ao array do tópico, para que ele receba as mensagens
             cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs-1].csock = cdata->csock;
-            
-            // Enviar confirmação ao cliente
-            send(cdata->csock, &server_resp, sizeof(server_resp), 0);
-
         }
 
+        // Exit
         else if (operation.operation_type == 5) {
             printf("client %d disconnected.\n", operation.client_id);
             break;
-        } 
+        }
 
+        // Unsubscribe
         else if (operation.operation_type == 6) {
             printf("client %d unsubscribed from %s\n", operation.client_id, operation.topic);
 
-            // Encontre o tópico correspondente
+            // Encontra o tópico
             int topic_index = -1;
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (strcmp(cdata->sdata->topicos[i].nome, operation.topic) == 0) {
@@ -184,7 +202,7 @@ void * client_thread(void *data) {
                 }
             }
 
-            // Remova o cliente da lista de inscritos (se estiver inscrito)
+            // Remove o cliente da lista de inscritos
             if (topic_index != -1) {
                 for (int i = 0; i < cdata->sdata->topicos[topic_index].num_subs; i++) {
                     if (cdata->sdata->topicos[topic_index].sub_clients[i].id == cdata->id) {
@@ -203,7 +221,11 @@ void * client_thread(void *data) {
             printf("comando desconhecido\n");
         }
 
-        send(cdata->csock, &server_resp, sizeof(server_resp), 0);
+        // O servidor envia uma resposta ao cliente, a menos que a operação seja de publish (a mensagem será enviada a outros).
+        if (server_resp.operation_type != 2) {
+            send(cdata->csock, &server_resp, sizeof(server_resp), 0);
+        }
+        
 
     }
 
@@ -247,10 +269,6 @@ int main(int argc, char **argv) {
     if (0 != listen(s, 10)) {
         logexit("listen");
     }
-
-    char addrstr[BUFSZ];
-    addrtostr(addr, addrstr, BUFSZ);
-    printf("bound to %s, waiting connections\n", addrstr);
 
     struct server_data sdata;
     for (int i = 0; i < MAX_CLIENTS; i++) {
