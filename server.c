@@ -71,26 +71,25 @@ void * client_thread(void *data) {
         struct BlogOperation server_resp;
         server_resp.server_response = 1;
         server_resp.operation_type = operation.operation_type;
-        strcpy(server_resp.content, operation.content);
         strcpy(server_resp.topic, operation.topic);
         
         if ((int)count < 0) {
             perror("recv");
             break;
         } else if ((int)count == 0) {
-            printf("client %d disconnected.\n", operation.client_id);
+            printf("client %02d disconnected.\n", operation.client_id);
             break;
         } 
 
         // Atribuição do ID do cliente
         else if (operation.operation_type == 1) {
-            printf("client %d connected\n", cdata->id);
+            printf("client %02d connected\n", cdata->id);
             server_resp.client_id = cdata->id;
         }
 
         // Publish
         else if (operation.operation_type == 2) {
-            printf("new post added in %s by %d\n", operation.topic, operation.client_id);
+            printf("new post added in %s by %02d\n", operation.topic, operation.client_id);
 
             // Identifica o tópico ou cria um novo
             int topic_index = -1;
@@ -171,7 +170,7 @@ void * client_thread(void *data) {
                 // Se não estiver inscrito, inscreve
                 if (!client_already_subscribed) {
                     cdata->sdata->topicos[topic_index].sub_clients[cdata->sdata->topicos[topic_index].num_subs++].id = cdata->id;
-                    printf("client %d subscribed to %s\n", operation.client_id, operation.topic);
+                    printf("client %02d subscribed to %s\n", operation.client_id, operation.topic);
                 }
                 // Se estiver inscrito, envia mensagem de erro
                 else {
@@ -185,13 +184,13 @@ void * client_thread(void *data) {
 
         // Exit
         else if (operation.operation_type == 5) {
-            printf("client %d disconnected.\n", operation.client_id);
+            printf("client %02d disconnected.\n", operation.client_id);
             break;
         }
 
         // Unsubscribe
         else if (operation.operation_type == 6) {
-            printf("client %d unsubscribed from %s\n", operation.client_id, operation.topic);
+            printf("client %02d unsubscribed from %s\n", operation.client_id, operation.topic);
 
             // Encontra o tópico
             int topic_index = -1;

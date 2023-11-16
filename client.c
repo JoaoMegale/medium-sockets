@@ -38,7 +38,7 @@ void *recv_handler(void *socket_desc) {
 
 		// Recebe mensagem publicada
 		if (server_resp.operation_type == 2) {
-			printf("new post added in %s by %d\n%s\n", server_resp.topic, server_resp.client_id, server_resp.content);
+			printf("new post added in %s by %02d\n%s\n", server_resp.topic, server_resp.client_id, server_resp.content);
 		}
 
 		// Listagem de tópicos
@@ -108,6 +108,7 @@ int main(int argc, char **argv) {
 	char client_input[BUFSZ];
 
 	while(1) {
+
 		fgets(client_input, BUFSZ-1, stdin);
 
 		operation.server_response = 0;
